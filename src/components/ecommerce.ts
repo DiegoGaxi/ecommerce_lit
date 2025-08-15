@@ -1,9 +1,11 @@
+import { ToastMessage } from './toast-message';
 import { LitElement, html, css } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, state, query } from 'lit/decorators.js';
 import './ecommerce-header';
 import './ecommerce-cart';
 import './ecommerce-product';
 import './ecommerce-catalog';
+import './toast-message';
 
 @customElement('ecommerce-app')
 export class EcommerceApp extends LitElement {
@@ -20,53 +22,39 @@ export class EcommerceApp extends LitElement {
     `
   ];
 
-  @state() cartItems: any[] = JSON.parse(localStorage.getItem('cartItems') || '[]');
   @state() _view = window.location.pathname === '/catalogo' ? 'catalog' : 'producto';
-  @state() _selectedProduct: any = JSON.parse(localStorage.getItem('selectedProduct') || 'null');
+  @state() _selectedProduct: any = JSON.parse(localStorage.getItem('') || 'null');
+  @query('toast-message') toastRef!: ToastMessage;
 
-  handleAddToCart(e: any) {
-    const { product, quantity } = e.detail;
-    const idx = this.cartItems.findIndex((item) => item.id === product.id);
-    let newCart;
-    if (idx > -1) {
-      newCart = [...this.cartItems];
-      newCart[idx] = { ...newCart[idx], quantity: newCart[idx].quantity + quantity };
-    } else {
-      newCart = [...this.cartItems, { ...product, quantity }];
-    }
-    this.cartItems = newCart;
-    localStorage.setItem('cartItems', JSON.stringify(newCart));
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener('cart-toast', this._showToast);
   }
 
-  handleCartUpdate(e: any) {
-    this.cartItems = e.detail.items;
-    localStorage.setItem('cartItems', JSON.stringify(this.cartItems));
+  disconnectedCallback() {
+    window.removeEventListener('cart-toast', this._showToast);
+    super.disconnectedCallback();
   }
 
-  _goToCatalog() {
-    window.history.pushState({}, '', '/catalogo');
-    this._view = 'catalog';
+  _showToast = (e: any) => {
+    const { message, type } = e.detail;
+    this.toastRef?.show(message, type);
   }
 
-  _viewProduct(e: any) {
-    this._selectedProduct = e.detail.product;
-    localStorage.setItem('selectedProduct', JSON.stringify(this._selectedProduct));
-    window.history.pushState({}, '', '/producto/' + this._selectedProduct.id);
+  sum(a: number, b: number) {
+    return a + b;
   }
 
   render() {
     return html`
-      <ecommerce-header .showCatalogLink=${this._view === 'producto'} @go-catalog=${this._goToCatalog}>
-        <ecommerce-cart
-          slot="cart"
-          .items=${this.cartItems}
-          @cart-update=${this.handleCartUpdate}
-        ></ecommerce-cart>
+      <toast-message></toast-message>
+      <ecommerce-header>
+        <ecommerce-cart slot="cart"></ecommerce-cart>
       </ecommerce-header>
       <main>
         ${this._view === 'catalog'
-          ? html`<ecommerce-catalog @view-product=${this._viewProduct}></ecommerce-catalog>`
-          : html`<ecommerce-product .product=${this._selectedProduct} @add-to-cart=${this.handleAddToCart}></ecommerce-product>`}
+          ? html`<ecommerce-catalog></ecommerce-catalog>`
+          : html`<ecommerce-product></ecommerce-product>`}
       </main>
     `;
   }

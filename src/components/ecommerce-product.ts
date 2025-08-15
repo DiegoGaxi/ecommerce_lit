@@ -3,6 +3,7 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { theme } from '../styles/theme';
 import { fetchCatalogProducts, Product } from './dm/productDm';
+import { addToCart } from './utils/ecommerce-cart-events';
 
 @customElement('ecommerce-product')
 export class EcommerceProduct extends LitElement {
@@ -133,16 +134,33 @@ export class EcommerceProduct extends LitElement {
         right: 0.5rem;
       }
       .product-container {
-        max-width: 440px;
+        max-width: 900px;
         margin: 2.5rem auto;
         background: #fff;
         border-radius: 18px;
         box-shadow: 0 4px 32px #1e90ff22, 0 2px 12px #0002;
         padding: 2.5rem 2rem 2.2rem 2rem;
+        border: 1.5px solid #eaeaea;
+        display: flex;
+        flex-direction: row;
+        gap: 2.5rem;
+        align-items: flex-start;
+      }
+      .product-left {
+        flex: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
-        border: 1.5px solid #eaeaea;
+        justify-content: flex-start;
+      }
+      .product-right {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 1.2rem;
+        margin-top: 0.5rem;
       }
       .product-img {
         width: 230px;
@@ -236,18 +254,15 @@ export class EcommerceProduct extends LitElement {
   ];
 
   @property({ type: Object }) product: Product | null = null;
-
   @state() _products: Product[] = [];
   @state() _quantity: number = 1;
   @state() _showModal: boolean = false;
   @state() _modalIndex: number = 0;
-  @state() _loading: boolean = false;
   @state() _error: string = '';
   @state() _zoomed: boolean = false;
 
   async connectedCallback() {
     super.connectedCallback();
-    this._loading = true;
     try {
       this._products = await fetchCatalogProducts();
       const id = Number(window.location.pathname.split('/').pop());
@@ -261,10 +276,15 @@ export class EcommerceProduct extends LitElement {
     } catch (e) {
       this._error = 'Error cargando el producto.';
     } finally {
-      this._loading = false;
     }
   }
   
+  _addToCartLogic() {
+    if (!this.product) return;
+    addToCart(this.product, this._quantity);
+    this._quantity = 1;
+  }
+
   _toggleZoom = () => {
     this._zoomed = !this._zoomed;
   }
@@ -296,7 +316,6 @@ export class EcommerceProduct extends LitElement {
     if (this._modalIndex > 0) this._modalIndex--;
   }
 
-
   _nextImg = () => {
     if (this.product && this.product.images && this._modalIndex < this.product.images.length - 1) this._modalIndex++;
   }
@@ -309,19 +328,7 @@ export class EcommerceProduct extends LitElement {
     this._quantity = Math.max(1, this._quantity + delta);
   }
 
-  _addToCart = () => {
-    this.dispatchEvent(new CustomEvent('add-to-cart', {
-      detail: { quantity: this._quantity, product: this.product },
-      bubbles: true,
-      composed: true
-    }));
-    this._quantity = 1;
-  }
-
   render() {
-    if (this._loading) {
-      return html`<p>Cargando producto...</p>`;
-    }
     if (this._error) {
       return html`<p style="color:red;">${this._error}</p>`;
     }
@@ -330,30 +337,51 @@ export class EcommerceProduct extends LitElement {
     }
     return html`
       <div class="product-container">
-        <img class="product-img" src="${this.product.images?.[0] ?? ''}" alt="${this.product.title ?? ''}" @click="${() => this._openModal(0)}" style="cursor:zoom-in;" tabindex="0" @keydown="${(e: KeyboardEvent) => {if(e.key==='Enter'){this._openModal(0)}}}" />
-        <div class="product-title">${this.product.title ?? ''}</div>
-        <div class="product-desc">${this.product.description ?? ''}</div>
-        <div class="product-price">$${this.product.price?.toFixed(2) ?? ''}</div>
-        <div class="qty-controls">
-          <button class="qty-btn" @click="${() => this._updateQty(-1)}" aria-label="Disminuir cantidad">-</button>
-          <span class="qty-value">${this._quantity}</span>
-          <button class="qty-btn" @click="${() => this._updateQty(1)}" aria-label="Aumentar cantidad">+</button>
+        <div class="product-left">
+          <img class="product-img" src="${this.product.images?.[this._modalIndex] ?? ''}" alt="${this.product.title ?? ''}" @click="${() => this._openModal(this._modalIndex)}" style="cursor:zoom-in;" tabindex="0" @keydown="${(e: KeyboardEvent) => {if(e.key==='Enter'){this._openModal(this._modalIndex)}}}" />
+          <div class="modal-thumbs">
+            ${this.product.images.map((img:string, idx:number) => html`
+              <img
+                class="modal-thumb${this._modalIndex===idx?' selected':''}"
+                src="${img}"
+                alt="miniatura"
+                @mouseenter="${() => this._goToImg(idx)}"
+                @click="${() => this._goToImg(idx)}"
+              />
+            `)}
+          </div>
         </div>
-        <button class="add-cart-btn" @click="${this._addToCart}">Agregar al carrito</button>
+        <div class="product-right">
+          <div class="product-title">${this.product.title ?? ''}</div>
+          <div class="product-desc">${this.product.description ?? ''}</div>
+          <div class="product-price">$${this.product.price?.toFixed(2) ?? ''}</div>
+          <div class="qty-controls">
+            <button class="qty-btn" @click="${() => this._updateQty(-1)}" aria-label="Disminuir cantidad">-</button>
+            <span class="qty-value">${this._quantity}</span>
+            <button class="qty-btn" @click="${() => this._updateQty(1)}" aria-label="Aumentar cantidad">+</button>
+          </div>
+          <button class="add-cart-btn" @click="${this._addToCartLogic}">Agregar al carrito</button>
+        </div>
       </div>
 
       ${this._showModal && this.product.images ? html`
         <div class="modal-backdrop" @click="${this._onBackdropClick}">
           <div class="img-modal" @click="e => e.stopPropagation()">
             <button class="close-btn" @click="${this._closeModal}" aria-label="Cerrar">&times;</button>
-            <div style="display:flex;align-items:center;justify-content:center;width:100%;">
+            <div class="modal-img-row">
               <button class="arrow-btn left" @click="${this._prevImg}" ?disabled=${this._modalIndex === 0} title="Anterior" aria-label="Anterior">&#8592;</button>
               <img class="modal-img${this._zoomed ? ' zoomed' : ''}" src="${this.product.images[this._modalIndex] ?? ''}" alt="${this.product.title ?? ''}" @click="${this._toggleZoom}" />
               <button class="arrow-btn right" @click="${this._nextImg}" ?disabled=${this._modalIndex === this.product.images.length-1} title="Siguiente" aria-label="Siguiente">&#8594;</button>
             </div>
             <div class="modal-thumbs">
               ${this.product.images.map((img:string, idx:number) => html`
-                <img class="modal-thumb ${this._modalIndex===idx?' selected':''}" src="${img}" alt="miniatura" @click="${() => this._goToImg(idx)}" />
+                <img
+                  class="modal-thumb${this._modalIndex===idx?' selected':''}"
+                  src="${img}"
+                  alt="miniatura"
+                  @mouseenter="${() => this._goToImg(idx)}"
+                  @click="${() => this._goToImg(idx)}"
+                />
               `)}
             </div>
           </div>

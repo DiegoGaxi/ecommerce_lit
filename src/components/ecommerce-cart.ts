@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
-import { customElement } from 'lit/decorators.js';
+import { customElement, state } from 'lit/decorators.js';
 import { theme } from '../styles/theme';
+import { getCartItems, removeFromCart } from './utils/ecommerce-cart-events';
 
 @customElement('ecommerce-cart')
 export class EcommerceCart extends LitElement {
@@ -158,20 +159,35 @@ export class EcommerceCart extends LitElement {
       }
     `
   ];
-
+  
   static get properties() {
     return {
-        items: { type: Array },
-        _cartCount: { type: Number },
-        _open: { type: Boolean }
+      _cartCount: { type: Number },
+      _open: { type: Boolean }
     };
   }
 
-  items: any[] = [];
   _open = false;
+  @state() items: any[] = getCartItems();
+
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener('cart-changed', this._onCartChanged);
+    this.items = getCartItems();
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener('cart-changed', this._onCartChanged);
+    super.disconnectedCallback();
+  }
+
+  _onCartChanged = () => {
+    this.items = getCartItems();
+    this.requestUpdate();
+  }
 
   get _cartCount() {
-    return this.items.reduce((sum, item) => sum + item.quantity, 0);
+    return this.items.reduce((sum: number, item: any) => sum + item.quantity, 0);
   }
 
   _openModal() {
@@ -197,22 +213,14 @@ export class EcommerceCart extends LitElement {
   }
 
   _removeItem(index: number) {
-    const newItems = [...this.items];
-    newItems.splice(index, 1);
-    this.dispatchEvent(new CustomEvent('cart-update', {
-      detail: { items: newItems },
-      bubbles: true,
-      composed: true
-    }));
+    removeFromCart(index);
   }
 
   get _total() {
-    const items: any[] = this.items;
-    return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    return this.items.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
   }
 
   render() {
-    const items: any[] = this.items;
     return html`
       <button class="icon-btn" title="Cart" @click="${this._openModal}">
         <span>🛒</span>
@@ -226,9 +234,9 @@ export class EcommerceCart extends LitElement {
             <button class="close-btn" @click="${this._closeModal}">&times;</button>
             <h2>Cart</h2>
             <div class="cart-list">
-              ${items.length === 0 ? html`<div class="empty-cart">El carrito esta vació.</div>` 
+              ${this.items.length === 0 ? html`<div class="empty-cart">El carrito esta vació.</div>` 
                 : 
-                items.map((item, i) => html`
+                this.items.map((item, i) => html`
                 <div class="cart-item">
                   <img class="cart-item-img" src="${item.images[0]}" alt="${item.title}" />
                   <div class="cart-item-info">
@@ -240,8 +248,8 @@ export class EcommerceCart extends LitElement {
                 </div>
               `)}
             </div>
-            <div class="subtotal" ?hidden=${items.length === 0}>Total: $ ${this._total.toFixed(2)}</div>
-            <button class="pay-btn" ?hidden=${items.length === 0}>Pagar</button>
+            <div class="subtotal" ?hidden=${this.items.length === 0}>Total: $ ${this._total.toFixed(2)}</div>
+            <button class="pay-btn" ?hidden=${this.items.length === 0}>Pagar</button>
           </div>
         </div>
       ` : ''}
