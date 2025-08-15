@@ -1,5 +1,6 @@
 import path from 'path';
 import { defineConfig } from "vite";
+import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   build: {
@@ -16,4 +17,8 @@ export default defineConfig({
       },
     },
   },
+  plugins: [
+    // Solves type script paths
+    tsconfigPaths(),
+  ]
 });

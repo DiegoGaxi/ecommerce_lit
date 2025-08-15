@@ -1,34 +1,36 @@
-import { playwrightLauncher } from '@web/test-runner-playwright';
-import { esbuildPlugin } from '@web/dev-server-esbuild';
+import { vitePlugin,removeViteLogging } from '@remcovaes/web-test-runner-vite-plugin';
 
 export default {
-  files: 'test/**/*.test.ts',
-  nodeResolve: true,
-  browsers: [
-    playwrightLauncher({ product: 'chromium' })
-  ],
-  plugins: [
-    // make sure this plugin is always last
-    esbuildPlugin({ ts: true }),
-    legacyPlugin({
-      polyfills: {
-        webcomponents: true,
-        // Inject lit's polyfill-support module into test files, which is required
-        // for interfacing with the webcomponents polyfills
-        custom: [
-          {
-            name: 'lit-polyfill-support',
-            path: 'node_modules/lit/polyfill-support.js',
-            test: "!('attachShadow' in Element.prototype)",
-            module: false,
-          },
-        ],
-      },
-    }),
-  ],
-  testFramework: {
-    config: {
-      timeout: 8000
-    }
-  }
+  files: ['src/**/*.test.ts'],
+  filterBrowserLogs: removeViteLogging,
+  testRunnerHtml: (testFramework) =>
+		`<!doctype html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>Vite + Lit + TS</title>
+            <script type="module" src="${testFramework}"></script>
+            <script type="module">
+                /* Hack to disable Lit dev mode warnings */
+                const systemWarn = window.console.warn;
+                window.console.warn = (...args) => {
+                    if (args[0].indexOf('Lit is in dev mode.') === 0) {
+                        return;
+                    }
+                    if (args[0].indexOf('Multiple versions of Lit loaded.') === 0) {
+                        return;
+                    }
+                    systemWarn(...args);
+                };
+            </script>
+          </head>
+          <body>
+            
+          </body>
+        </html>
+        `,
+    plugins: [
+        vitePlugin()
+    ]
 };
